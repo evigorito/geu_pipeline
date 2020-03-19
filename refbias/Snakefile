@@ -1,0 +1,2386 @@
+###########################################################################
+## design reference bias correction to deal with reference maping bias 
+#########################################################################
+
+shell.prefix("source ~/.bashrc; ")
+
+configfile: "config.yaml"
+
+localrules: all
+
+import pandas as pd
+import os
+
+from snakemake.remote.FTP import RemoteProvider as FTPRemoteProvider
+FTP = FTPRemoteProvider()
+
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+HTTP = HTTPRemoteProvider()
+
+
+
+subworkflow InputPrep:
+    workdir: "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/real_data/psoriasis"
+
+# get home directories for Snakefiles in subdirectories to call Scripts/Functions etc avoiding duplication
+home_InputPrep = vars(vars(workflow)['_subworkflows']['InputPrep'])['_workdir']
+
+
+
+def samples():
+    """ Get samples to use common to DNA and RNA, file prepared in /home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/real_data/RNA.genotyping.QC.R. Each line contains the name of a sample
+    """
+    f = open(config['samples'], "r")
+    samp=[]
+    for line in f:
+        samp.append(line.strip().split()[0])
+    return samp
+
+
+def genes():
+    """ Get genes to run in model from  previous summary for RNA to avoid running genes with not enough information"""
+    data=pd.read_csv(config['stan'], sep=" ")
+    return list(set(data['Gene_id']))
+
+def genes_GT():
+    """ Get genes in chomosome 22 after filering counts to run in GT model"""
+    df1=pd.read_csv(config['geneInfo'], sep=" ")
+    df1=df1[df1.chr == '22']
+    df2=pd.read_csv(config['counts'], sep=" ")
+    genes=df1.merge(df2.gene_id, on="gene_id")
+    return list(set(genes['gene_id']))
+
+
+rule all:
+    input:
+        #config['out'] + "/Btrecase/SpikeMixV3_2/PEP/GT/ENSG00000100030.stan.summary.txt",  ## to get PEP col
+        #expand(config['out'] + "/Btrecase/testing/rna99/{gene}.noGT.stan.summary.txt", gene=["ENSG00000128340"])
+        ##"Scripts/assess_refbias.pdf"
+        #config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt",
+        #expand(config['out'] + "/Btrecase/results/{source}.BiasCorrec.summary.txt", source=["rna99", "GT"])
+        #expand(config['out'] + "/Btrecase/refbias2/rna99/{gene}.noGT.stan.summary.txt", gene=genes() ) 
+        #expand(config['out'] + "/Btrecase/GT2/{gene}.stan.summary.txt", gene=genes_GT() )
+        #config['out'] + "/Btrecase/GT2/bj.txt"
+        #expand(config['out'] + "/Btrecase/GT2/{gene}.stan.summary.txt", gene=["ENSG00000100364","ENSG00000093072","ENSG00000100241","ENSG00000211666"] )
+        #"Scripts/QC.pdf"
+        #config['out'] + "/post_AI/remapped.AI.txt"
+        #expand(config['out'] + "/pre_AI/chrom{chrom}.txt", chrom=[22] )
+        #config["out"] + "/post_remap/pre_post_AI.txt"
+        #expand(config["out"] + "/post_remap/{sample}/Aligned.sortedByCoord.out.post_remapping_AI.txt", sample=samples() )
+        #expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22])
+        #config['out'] + "/Btrecase/results/GT.BiasCorrec2.summary.txt"
+        #config['out'] + "/Btrecase/results/rna99.BiasCorrec2.summary.txt"
+        #config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz"
+        #"Scripts/assess_refbias2.pdf"
+        #expand(config['out'] + "/NB/{gene}.eqtl.NegBinom.txt", gene= genes_GT() )
+        #"Scripts/mult_testing2.pdf"
+        #config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds"
+        #"Scripts/assess_refbias_extreme.pdf"
+        #expand(config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.for.AS.tab", source=["DNA", "RNA"], sample=samples(), chrom=[22])
+        #expand(config['out'] + "/Btrecase/SingleCounting/GT/{rbias}.{gene}.stan.summary.txt", gene=["ENSG00000185386"], rbias=[ "norefbias", "refbias"])#,
+        #expand(config['out'] + "Btrecase/testing/GT/{rbias}.{gene}.stan.summary.txt", gene=["ENSG00000188511"], rbias=["norefbias"])
+        #expand(config['out'] + "/Btrecase/SingleCounting/GT/{rbias}.{gene}.stan.summary.txt", gene=genes_GT(), rbias=[ "norefbias", "refbias"])#,
+        #expand(config['out'] + "/Btrecase/SingleCounting/RNA/{rbias}.{gene}.noGT.stan.summary.txt", gene=genes_GT(), rbias=["norefbias", "refbias"])
+        #"Scripts/assess_refbias4.pdf", config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.p054.txt"
+        #expand(config['out'] + "/Btrecase/SingleCounting/RNAp054/{rbias}.{gene}.noGT.stan.summary.txt", gene=genes_GT(), rbias=["norefbias", "refbias"])
+        #expand(config['out'] + "/Btrec/MixedPrior3/{gene}.stan.summary.txt", gene=genes_GT())
+        #expand(config['out'] + "/Btrecase/MixPrior/GT/rbias.{gene}.stan.summary.txt", gene=genes_GT())
+        #expand(config['out'] + "/rasqual/output/{gene}.txt", gene=genes_GT())
+        #config['out'] + "/rasqual/inputs/counts.rasqual.bin"
+        #"Scripts/mult_testing4.pdf"
+        #config['bin'] + "/clapack.tgz"
+        #expand(config['out'] + "/Btrec/{prior}/{gene}.stan.summary.txt", gene=genes_GT(), prior=["SpikeMixV3_2", "SpikeMixV3_3"])
+        #expand(config['out'] + "/Btrecase/{prior}/GT/{rbias}.{gene}.stan.summary.txt",gene=['ENSG00000100364'], prior=["SpikeMixV3_2"], rbias=["rbias", "norefbias"]),
+        #expand(config['out'] + "/Btrecase/{prior}/RNA/{rbias}.{gene}.noGT.stan.summary.txt", rbias=["rbias", "norefbias"], gene=genes_GT(), prior=["SpikeMixV3_2"])
+        #expand(config['out'] + "/Btrecase/{prior}/RNA/{rbias}.{gene}.noGT.stan.summary.txt", rbias=["norefbias"], gene=genes_GT(), prior=["SpikeMixV3_2"])
+        #"Scripts/geuMixPrior.pdf"
+        #expand(config['out'] + "/Btrecase/{prior}/QC/{source}.rerun.txt" , prior=["SpikeMixV3_2"], source=["GT"])
+        #config['chain'] + "/hg18ToHg19.over.chain.gz"
+        #expand(config['MuTHER'] + "/MuTHER_cis_results_chr{chrom}_B37.txt", chrom=[22])
+        #expand(config['out'] + "/Btrecase/weakprior/GT/{gene}.stan.summary.txt", gene=genes_GT() )
+        #expand(config['out'] + "/rasqual/output/cis10_5/{gene}.txt", gene=genes_GT())
+        #config['out'] + "/Btrecase/QCfSNP/fisher.fSNPs.txt"
+        #config['out'] + "/Btrecase/QCfSNP/HWE.fSNPs.txt"
+        #"Scripts/GT_QC.pdf"
+        #expand(config['out'] + "/Btrecase/SpikeMixV3_2/{fisher}/RNA/{rbias}.{gene}.noGT.stan.summary.txt",  fisher=["fisher001"], gene=genes_GT(), rbias=["rbias", "norefbias"])
+        #config['bin'] + "/rasqual/data/chr11mod.tab"
+        #config['bin'] + "/rasqual/data/chr11mod.gz", config['bin'] + "/rasqual/data/chr11mod.gz.tbi"
+        #expand(config['bin'] + "/rasqual/data/output/{gene}.{test}.txt" , gene=["C11orf21", "TSPAN32"], test=["mod", "control"])
+        #expand(config['bin'] + "/rasqual/data/chr11{test}.tab", test=["mod", "control"])
+        #"Scripts/rasqual.ASE.test.pdf"
+        #expand(config['out'] + "/rasqual/allele_counts/{sample}.alleleCounts.txt", sample=samples())
+        #config["out"] + "/rasqual/inputs/vcf_prep/body.txt"
+        #config['out'] + "/rasqual/inputs/rasq.vcf.gz"
+        #config['out'] + "/rasqual/inputs/corrected/snps_perGene.txt"
+        #expand(config['out'] + "/rasqual/outCounts/cis1_10_5/{gene}.txt", gene=genes_GT())
+        #config['out'] + "/Btrecase/inputs/fSNP/chr22.fSNP.fisher001.unique.genes.txt"
+        #expand(config['out'] + "/Btrecase/QC1_F/RNA/{gene}.noGT.stan.summary.txt", gene=["ENSG00000100364"]),  #genes_GT()),
+        #expand(config['out'] + "/Btrecase/QC2_F/RNA/{gene}.noGT.stan.summary.txt", gene=["ENSG00000100364"])  #genes_GT())
+        #config['out'] + "/Btrecase/objects/EURr.rds"
+        #expand(config['out'] + "/lm/log_counts/{gene}.lm.summary.txt", gene=genes_GT())
+        #config["geu_arrayX"] + "/EUR373.gene.cis.FDR5.best.rs137.txt.gz"
+        #config['deseq2in'] + "/chr22.GT.geuvardis.txt"
+        #expand(config['out'] + "/lm/deseq2In/{gene}.lm.summary.txt", gene=genes_GT())
+        #"Scripts/comp_lm.pdf"
+        #expand(config['out'] + "/inputs/sample5_25/samples.{size}inds.txt" , size=[5,25])
+        #expand(config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz", size=[5,25]),
+        #expand(config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz.tbi" , size=[5,25])
+        #expand(config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/counts.rasqual.bin", size=[5,25])#,
+        #expand(config['out'] + "/rasqual/out{size}/cis1_10_5/{gene}.txt", size=[5,25], gene=genes_GT())
+        #expand(config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.rds", size=[5,25]),config['out'] + "/rasqual/inputs/correctedCis10_5/covariates.rasqual_gc.rds"
+        #expand(config['out'] + "/lm/Inds{size}/{gene}.lm.summary.txt", size=[5,25], gene=genes_GT())
+        #expand(config['out'] + "/lm/Inds86_gclibsize/{gene}.lm.summary.txt", gene=genes_GT())
+        #"Scripts/external.validity.pdf"
+        #config['out'] + "/rasqual/inputs/rasq_ase/bamlist"
+        #config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz"
+        #config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz.tbi"
+        #config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.bin"
+        #expand(config['out'] + "/rasqual/outASE/cis1_10_5/{gene}.txt", gene=genes_GT())
+        #expand(config['out'] + "/rasqual/outASE_per/cis1_10_5/{gene}.txt", gene=genes_GT()),
+        expand(config['out'] + "/rasqual/out{size}ase/cis1_10_5/{gene}.txt", size=[5,25], gene=genes_GT())
+        
+rule fSNP_coord:
+    """Get fSNP coordinates per gene"""
+    input:
+        ebg=config['ebg'],
+        legend=config['legend'] + "/1000GP_Phase3_chr{chrom}.legend.gz"
+    params:
+        maf=0.05,
+        pop="EUR"
+    output:
+        fsnps=config['out'] + "/inputs/fSNP/chr{chrom}.fSNP.RP.genes.txt"
+    script:
+        "Scripts/fSNP_RP.R"
+    
+rule input_bam:
+    """Select bam reads with unique mappings and chrom 22 to input next rule"""
+    input:
+        bm=config['geu_dir'] + "/STAR/built37/{sample}/Aligned.sortedByCoord.out.bam"
+    params:
+        mapq=255
+    output:
+        bam=config['out'] + "/inputs/bam/{sample}.chrom{chrom}.MapUnique.bam",
+        bai=config['out'] + "/inputs/bam/{sample}.chrom{chrom}.MapUnique.bam.bai"
+    shell:
+        "samtools view  -b -o {output.bam} -q {params.mapq} -h {input.bm} {wildcards.chrom} ; " 
+        "samtools index {output.bam} "
+
+rule prepare_remap:
+    """Prepares files for remapping and for computing number of reads matching each SNP plus AI. Initial AI should be 0.5. For each read overlapping SNPs a new read is generated by swapping alleles. Both new and old reads are saved in a fastq file(s), depending on being paired or single reads, for remapping"""
+    input:
+        bam=config['out'] + "/inputs/bam/{sample}.chrom{chrom}.MapUnique.bam",
+        fsnps=config['out'] + "/inputs/fSNP/chr{chrom}.fSNP.RP.genes.txt"
+    output:
+        fastq1=config["out"] + "/pre_remap/{sample}.chrom{chrom}.MapUnique.remap.fq1.gz",
+        fastq2=config["out"] + "/pre_remap/{sample}.chrom{chrom}.MapUnique.remap.fq2.gz",
+        pre_AI=config["out"] + "/pre_remap/{sample}.chrom{chrom}.MapUnique.initial.AI.txt"
+    params:
+        snp_dir=config['out'] + "/inputs/fSNP",
+        basq=10
+    log:
+        "logs/pre_remap/{sample}.chrom{chrom}.log"
+    shell:
+        "python {config[refbias_dir]}/intersecting_snps.py "
+        " --is_paired_end --is_sorted "
+        " --base_qual {params.basq} "
+        " --output_dir {config[out]}/pre_remap "
+        " --snp_dir {params.snp_dir} "
+        " {input.bam} "
+       
+
+rule map_star2_paired_end:
+    """map reads a second time using STAR and index"""
+    input:
+        fastq1=expand(config["out"] + "/pre_remap/{{sample}}.chrom{chrom}.MapUnique.remap.fq1.gz", chrom=[22]),
+        fastq2=expand(config["out"] + "/pre_remap/{{sample}}.chrom{chrom}.MapUnique.remap.fq2.gz", chrom=[22])
+    output:
+        config["out"] + "/STAR2/{sample}/Aligned.sortedByCoord.out.bam",
+        config["out"] + "/STAR2/{sample}/Aligned.sortedByCoord.out.bam.bai"
+    threads: 16
+    params:
+        index=config['indices'],
+        read="zcat",
+        out_dir=config["out"] + "/STAR2/{sample}/"
+    shell:
+        "{config[STAR]} "
+        " --runThreadN {threads} "
+        " --genomeDir {params.index} "
+        " --readFilesIn {input.fastq1} {input.fastq2} "
+        " --readFilesCommand {params.read} "
+        " --outSAMtype BAM SortedByCoordinate "
+        " --outFileNamePrefix {params.out_dir} "
+        " --outStd Log "
+        " {log} ;"
+        "samtools index {output[0]} "
+       
+
+rule AI_post_remapping:
+    """ Get AI post remapping for each sample """
+    input:
+        bam=config["out"] + "/STAR2/{sample}/Aligned.sortedByCoord.out.bam",
+        fsnps=expand(config['out'] + "/inputs/fSNP/chr{chrom}.fSNP.RP.genes.txt", chrom=['22'])
+    output:
+        AI=config["out"] + "/post_remap/{sample}/Aligned.sortedByCoord.out.post_remapping_AI.txt"
+    params:
+        snp_dir=config['out'] + "/inputs/fSNP",
+        output_dir=config['out'] + "/post_remap/{sample}"
+    shell:
+        "python {config[refbias_dir]}/intersecting_snps_post_remap.py "
+        " --is_paired_end --is_sorted "
+        " --output_dir {params.output_dir} "
+        " --snp_dir {params.snp_dir} "
+        " {input.bam} "
+
+rule get_AI: 
+    """Calculates AI for each SNP across all samples. Includes binomial test  whether to keep AI estimates over 0.5"""
+    input:
+        pre=expand(config["out"] + "/pre_remap/{sample}.chrom{chrom}.MapUnique.initial.AI.txt",
+                   sample=samples(), chrom=[22]),
+        post=expand(config["out"] + "/post_remap/{sample}/Aligned.sortedByCoord.out.post_remapping_AI.txt", sample=samples() )
+    output:
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    shell:
+        "python {config[refbias_dir]}/AI.py "
+        " --initial-AI {input.pre} "
+        " --post-remap_AI {input.post} "
+        " --output_file {output.AI} "
+
+rule QC:
+    """ AI QC. Using stan summary produced in /home/ev250/Bayesian_inf/trecase/Scripts/out.chr22.lm.GT.noGT.rna.v3.R"""
+    input:
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        sample=config["out"] + "/post_remap/HG00096/Aligned.sortedByCoord.out.post_remapping_AI.txt",
+        stan=config['stan'],
+        script="Scripts/QC.R"
+    output:
+        "Scripts/QC.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/QC.R"
+
+
+        ### rules below were run using StanModel1 for ref bias correction, version 2 uses logit instead. These rules need a change in input preparation to produce hap estimates based on weighted avarage of proportions and not weighted average of logit as it is currently coded. If necessary I can add an argument in function to allow to choose between proportion scale or logit scale.
+
+# rule run_btrecaseRefBias:
+#     """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-4. Also run with 99%CI and try refBias correction"""
+#     input:
+#         counts=config['counts'],
+#         libsize=config['covs'],
+#         eSNPs=config['fSNPs'],
+#         genecoord=config['geneInfo'],
+#         vcf=config['vcf'],
+#         leRef=config['legend22'],        
+#         hapRef=config['hap22'],
+#         AI=config["out"] + "/post_remap/pre_post_AI.txt",
+#         model=config['StanNoGT1']
+#     params:
+#         chrom=22,
+#         snps=5*10**5,
+#         pop="EUR",
+#         maf=0.05,
+#         minAse=5,
+#         minAseSnp=5,
+#         minAseN=5,
+#         tag=0.9,
+#         info=0.3,
+#         prob=0.99,
+#         pfsnp=10**-4,
+#         pretotalReads=100,
+#         out=config['out'] + "/Btrecase/rna99"
+#     threads:
+#         16
+#     output:
+#         config['out'] + "/Btrecase/rna99/{gene}.noGT.stan.summary.txt"
+#     script:
+#         "Scripts/run_BtrecaseRefBias.R"        
+
+
+
+# rule run_btrecaseRefBias_GT:
+#     """Run associations with GT and refBias correction"""
+#     input:
+#         counts=config['counts'],
+#         libsize=config['covs'],
+#         eSNPs=config['fSNPs'],
+#         genecoord=config['geneInfo'],
+#         vcf=config['vcf_GT'],
+#         leRef=config['legend22'],        
+#         hapRef=config['hap22'],
+#         smodel=config['StanModel1']
+#         AI=config["out"] + "/post_remap/pre_post_AI.txt"
+#     params:
+#         chrom=22,
+#         snps=5*10**5,
+#         pop="EUR",
+#         tag=0.9,
+#         pfsnp=10**-4,
+#         pretotalReads=100,
+#         out=config['out'] + "/Btrecase/GT"
+#     threads:
+#         16
+#     output:
+#         config['out'] + "/Btrecase/GT/{gene}.stan.summary.txt"
+#     script:
+#         "Scripts/run_BtrecaseRefBias.GT.R"
+
+
+# rule merge_sum:
+#     """Merge stan summaries and indicates whether tag is fSNP or tagging an fSNP. Get EAF from fSNPs to allow correcting direction of effects with tag, if necessary"""
+#     input:
+#         eSNPs=config['fSNPs'],
+#         legfile=config['legend22']
+#     params:
+#         out_stan=config['out'] + "/Btrecase/{source}"
+#     output:
+#         comb=config['out'] + "/Btrecase/results/{source}.BiasCorrec.summary.txt"
+#     script:
+#         "Scripts/merge_sum.R"
+
+# rule merge_sum2:
+#     """Merge stan summaries from files run without refrence bias correction and indicates whether tag is fSNP or tagging an fSNP. Get EAF from fSNPs to allow correcting direction of effects with tag, if necessary"""
+#     input:
+#         eSNPs=config['fSNPs'],
+#         legfile=config['legend22']
+#     params:
+#         out_stan=config["rna99_noRefBiasCorrec"],
+#         prefix="selSNPs099CI",
+#         tags="no"
+#     output:
+#         comb=config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt"
+#     script:
+#         "Scripts/merge_sum.R"
+
+
+        
+
+        
+# rule assess_RefBias_correction:
+#     """Compares estimates with or without ref bias correction both for RNA and GT"""
+#     input:
+#         ref_bias=config['out'] + "/Btrecase/results/rna99.BiasCorrec.summary.txt",
+#         stan_before=config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt",
+#         vcf_GT=config['vcf_GT'],
+#         eSNPs=config['fSNPs'],
+#         AI=config["out"] + "/post_remap/pre_post_AI.txt",
+#         script="Scripts/assess_refbias.R"
+#     params:
+#         GT_dir=config['out'] + "/Btrecase/GT",
+#         GT_old=config['GT_old'],
+#         Imp_new=config['out'] + "/Btrecase/results/rna99",
+#         trec=config['trec']
+#     output:
+#         "Scripts/assess_refbias.pdf"
+#     script:
+#         "Scripts/RenderReport.R"
+#         #"Scripts/assess_refbias.R"
+
+
+rule fSNP_unique:
+    """Get unique fSNPs per gene when no strand info is available"""
+    input:
+        fsnps=config['fSNPs']
+    output:
+        ufsnps=config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt"
+    script:
+        home_InputPrep + "/Scripts/fSNP_unique.R"
+     
+
+
+
+rule run_btrecaseRefBias_GT2:
+    """Run associations with GT and refBias correction implementation with uncertainty"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=config['vcf_GT'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel=config['StanModel2'],   
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/GT2"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/GT2/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+rule run_btrecaseRefBias_noGT:        
+    """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-4. Also run with 99%CI and try refBias correction version 2"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=config['vcf'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=config['StanNoGT2']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        prob=0.99,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/refbias2/rna99"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/refbias2/rna99/{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+
+rule merge_sum_noGT:
+    """Merge stan summaries after running refbias version2 without GTs and indicates whether tag is fSNP or tagging an fSNP. Get EAF from fSNPs to allow correcting direction of effects with tag, if necessary"""
+    input:
+        eSNPs=config['fSNPs'],
+        legfile=config['legend22']
+    params:
+        out_stan=config['out'] + "/Btrecase/refbias2/rna99",
+        tags="yes"
+    output:
+        comb=config['out'] + "/Btrecase/results/rna99.BiasCorrec2.summary.txt"
+    script:
+        "Scripts/merge_sum.R"
+        
+rule down_gtx:
+    """ Downloads gtex data for EBV cells."""
+    input:
+        HTTP.remote("storage.googleapis.com/gtex_analysis_v7/single_tissue_eqtl_data/all_snp_gene_associations/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz", keep_local=True)
+    output:
+        config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz"
+    run:
+        outputName =os.path.join(config['EBV'] , os.path.basename(input[0]))
+        shell("mv {input} {outputName} ")
+
+rule down_egenes_geu:
+    """Download egenes file used by rasqual for QC"""
+    input:
+        HTTP.remote("https://www.ebi.ac.uk/arrayexpress/files/E-GEUV-1/EUR373.gene.cis.FDR5.best.rs137.txt.gz", keep_local=True)
+    output:
+        config["geu_arrayX"] + "/EUR373.gene.cis.FDR5.best.rs137.txt.gz"
+    run:
+        outputName =os.path.join(config['geu_arrayX'] , os.path.basename(input[0]))
+        shell("mv {input} {outputName} ")
+
+rule down_MuTHER:
+    """Downloads MuTHER data for all associations in chr22, coordinates in built36"""
+    input:
+        HTTP.remote("http://www.muther.ac.uk/DataForWebsite/MuTHER_cis_results_chr22.txt.gz", keep_local=True)
+    output:
+        config['MuTHER'] + "/MuTHER_cis_results_chr22.txt.gz"
+    run:
+        outputName =os.path.join(config['MuTHER'] , os.path.basename(input[0]))
+        shell("mv {input} {outputName} ")
+
+rule down_chain_hg18219:
+    """Download chain file to uplift built36 to 37"""
+    input:
+        HTTP.remote("hgdownload.cse.ucsc.edu/goldenpath/hg18/liftOver/hg18ToHg19.over.chain.gz", keep_local=True)
+    output:
+        config['chain'] + "/hg18ToHg19.over.chain.gz"
+    run:
+        outputName =os.path.join(config['chain'] , os.path.basename(input[0]))
+        shell("mv {input} {outputName} ")
+        
+
+rule MuTHER_37:
+    """Lift MuTHER results from build 36 to build 37, input in 36"""
+    input:
+        chain=config['chain'] + "/hg18ToHg19.over.chain.gz",
+        muther=config['MuTHER'] + "/MuTHER_cis_results_chr{chrom}.txt.gz",
+    params:
+        chrom="{chrom}"
+    output:
+        mutherF=config['MuTHER'] + "/MuTHER_cis_results_chr{chrom}_B37.txt"
+    script:
+        "Scripts/muther37.R"
+        
+        
+rule extract_post:
+    """ Extracts parameters from posterior for genes with signif associations"""
+    params:
+        GT_dir=config['out'] + "/Btrecase/GT2",
+        par="bj"
+    threads:
+        16
+    output:
+        out=config['out'] + "/Btrecase/GT2/bj.txt"
+    script:
+        "Scripts/extract.post.R"
+        
+
+rule nb_freq:
+    """ Run negative binomial model in frequentist manner to define threshold of significance in bayesian model"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        genecoord=config['geneInfo'],
+        vcf=config['vcf_GT']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        out=config['out'] + "/NB"
+    output:
+        out=config['out'] + "/NB/{gene}.eqtl.NegBinom.txt"
+    script:
+        "Scripts/run_NB.R"          
+
+
+rule rem_hom_miss_vcf:
+    """Remove SNPs all homs or missing from vcf to make faster assess_refbias_extreme rule"""
+    input:
+        vcf_GT=config['vcf_GT']
+    output:
+        out=config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds"
+    script:
+        "Scripts/rem_vcf.R"
+    
+
+rule assess_refbias_extreme:
+    """ Look at potential reference panel bias for gene with extreme observed values for ASE"""
+    input:
+        rds_GT=config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds",
+        eSNPs=expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        leRef=config['legend22'],
+        script="Scripts/assess_refbias_extreme.R"
+    params:
+        GT_dir=config['out'] + "/Btrecase/GT2",
+        GT_old=config['GT_old'],
+        dir_ai=config["out"] + "/post_remap",
+        trec=config['trec']
+    output:
+        "Scripts/assess_refbias_extreme.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/assess_refbias_extreme.R"
+      
+        
+   #### work in progress     
+rule assess_RefBias_correction2:
+    """Compares estimates with or without ref bias correction v2 both for RNA and GT"""
+    input:
+        ref_bias=config['out'] + "/Btrecase/results/rna99.BiasCorrec2.summary.txt",
+        stan_before=config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt",
+        rds_GT=config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds",
+        gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+        sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+        geu=config['sig-GEU'],
+        eSNPs=expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        script="Scripts/assess_refbias2.R"
+    params:
+        GT_dir=config['out'] + "/Btrecase/GT2",
+        GT_old=config['GT_old'],
+        #Imp_new=config['out'] + "/Btrecase/results/rna99",
+        trec=config['trec']
+    threads:
+        16
+    output:
+        "Scripts/assess_refbias2.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/assess_refbias2.R"
+
+###### Re-run models with and without ref bias correction after correcting for ASE double counting, I have done it in psoriasis and QC but not for GEUVARDIS chrom 22 ###
+
+rule ASE:
+    """Correct haplotypic counts phaser output from double counting reads with two het variants"""
+    input:
+        hapCounts=config['geu_dir'] + "/ASE/{source}/chr{chrom}.{sample}.haplotypic_counts.txt"
+    params:
+        sep="_",
+        min_cov=0
+    output:
+        config['geu_dir'] + "/ASE/{source}/chr{chrom}.{sample}.corrected_haplotypic_counts.txt"
+    script:
+        home_InputPrep + "/Scripts/variant_ase.py"  
+
+rule format_GT:
+    """Extract phased GT to make Btrecase input"""
+    input:
+        GT=config['geu_dir'] + "/ASE/{source}/chr{chrom}.{sample}.vcf.gz"
+    output:
+        tab=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.less.tab",
+        head=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.ASE.vcf"
+    shell:
+        "bcftools annotate -x ^FORMAT/GT {input} | "
+        "bcftools query -f "
+        "'%CHROM\\t%POS\\t%ID\\t%REF\\t%ALT\\t%QUAL\\t%FILTER\\t GT[\\t%GT]\\n' "
+        "-o {output.tab} ; "
+        "bcftools annotate -x ^FORMAT/GT {input} | "
+        "bcftools view -h | "
+        "sed -e '7i\\\
+##FORMAT=<ID=AS,Number=2,Type=Integer,Description=\"Allele-specific expression counts from RNA-seq\">' "
+        " > {output.head} "
+
+
+rule GT_ASE:
+    """Merge phased GT with ASE counts"""
+    input:
+        GT=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.less.tab",
+        ASE=config['geu_dir'] + "/ASE/{source}/chr{chrom}.{sample}.corrected_haplotypic_counts.txt"
+    output:
+        tab=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.for.AS.tab"
+    script:
+         home_InputPrep + "/Scripts/GT_ASE.R"
+
+rule GT_ASE_vcf:
+    """Make vcf with GT:ASE field"""
+    input:
+        head=config['geu_dir'] +"/ASE/{source}/{sample}.chr{chrom}.ASE.vcf" ,
+        body=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.for.AS.tab"
+    output:
+        vcf=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.ASE.vcf.gz",
+        idx=config['geu_dir'] + "/ASE/{source}/{sample}.chr{chrom}.ASE.vcf.gz.tbi"
+    shell:
+        "cat {input.body} >> {input.head} ; "
+        "bgzip {input.head} ; "
+        "bcftools index -t {output.vcf} "
+
+        
+rule merge_vcf:
+    """Merge vcf with GT:ASE field by chrom"""
+    input:
+        vcf=expand(config['geu_dir'] + "/ASE/{{source}}/{sample}.chr{{chrom}}.ASE.vcf.gz", sample=samples())
+    output:
+        vcf=config['geu_dir'] + "/ASE/{source}/chr{chrom}.ASE.allsamples.vcf.gz",
+        idx=config['geu_dir'] + "/ASE/{source}/chr{chrom}.ASE.allsamples.vcf.gz.tbi"
+    shell:
+        "bcftools merge -m none {input.vcf}  "
+        "-Oz -o {output.vcf} ; "
+        "bcftools index -t {output.vcf} "
+        
+        
+rule run_btrecaseRefBias2_GT:
+    """Run GT associations with and without and refBias correction implementation with uncertainty using 95-99% CI"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel=lambda wildcards: config['StanModel2'] if wildcards.rbias == 'refbias' else config['StanGTNoBias'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/SingleCounting/GT"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/SingleCounting/GT/{rbias}.{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+rule run_btrecaseRefBias2_noGT:        
+    """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-4. Also run with 95-99%CI and with and without refBias correction version 2"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/RNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=lambda wildcards: config['StanNoGT2'] if wildcards.rbias == 'refbias' else config['StanNoGT2NoBias'] 
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/SingleCounting/RNA"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/SingleCounting/RNA/{rbias}.{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+
+       
+rule assess_RefBias_correction3:
+    """Compares estimates with or without ref bias correction v2 both for RNA and GT. Saves gt.rna table comparing output for refbias correction harmonizing tags"""
+    input:
+        geneStEnd=InputPrep(config['geneStEnd']),
+        # ref_bias=config['out'] + "/Btrecase/results/rna99.BiasCorrec2.summary.txt",
+        # stan_before=config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt",
+        # rds_GT=config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds",
+        # gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+        # sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+        # geu=config['sig-GEU'],
+        # eSNPs=expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        # AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        script="Scripts/assess_refbias3.R"
+    params:
+        btrec_dir=config['out'] + "/Btrecase/SingleCounting",
+        trec=config['trec'],
+        source=["GT","RNA"],
+        rbias=["norefbias", "refbias"]
+    output:
+        pdf="Scripts/assess_refbias3.pdf",
+        gt_rna_sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.txt"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/assess_refbias3.R"
+
+        
+rule mult_testing:
+    """ Define threshold of significance in bayesian model. Compare output from freq negative binomial and trec. Wei-Yu run frequentist using DSeq2 library, inlcude it in the comparison"""
+    input:
+         script="Scripts/mult_testing.R",
+         dseq=expand(config['deseq2in'] + "/RunNBmodelbatch{N}_chr22.nbmodelRes.csv", N=[x+1 for x in range(10)]),
+         gt_rna_sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.txt"
+    params:
+        freq=config['out'] + "/NB",
+        trec=config['trec'],
+        btrecase=config['out'] + "/Btrecase/SingleCounting/GT"
+    output:
+        pdf="Scripts/mult_testing.pdf" #,
+        #trec_gt=config['out'] + "/Btrecase/SingleCounting/plots/refbias.gt.trec.rope.png"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/mult_testing.R"
+
+rule run_btrecaseRefBias4_noGT:        
+    """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-4. Also run with 95-99%CI and with and without refBias correction version 2. change prior for eQTL effect parameter to the same used with genotypes  N(0, 0.54)"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/RNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=lambda wildcards: config['StanNoGT054refbias'] if wildcards.rbias == 'refbias' else config['StanNoGT054NoBias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/SingleCounting/RNAp054"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/SingleCounting/RNAp054/{rbias}.{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+        
+rule assess_RefBias_correction4:
+    """Compares estimates with or without ref bias correction v2 both for RNA and GT but using same prior. Saves gt.rna table comparing output for refbias correction harmonizing tags"""
+    input:
+        geneStEnd=InputPrep(config['geneStEnd']),
+        # ref_bias=config['out'] + "/Btrecase/results/rna99.BiasCorrec2.summary.txt",
+        # stan_before=config["rna99_noRefBiasCorrec"] + "/rna99.summary.txt",
+        # rds_GT=config['out'] + "/inputs/chr22.ASE.allsamples.remHom.rds",
+        # eSNPs=expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        # AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        script="Scripts/assess_refbias4.R"
+    params:
+        btrec_dir=config['out'] + "/Btrecase/SingleCounting",
+        trec=config['trec'],
+        source=["GT","RNAp054"],
+        rbias=["norefbias", "refbias"]
+    output:
+        pdf="Scripts/assess_refbias4.pdf",
+        gt_rna_sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.p054.txt"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/assess_refbias4.R"
+
+rule mult_testing2:
+    """ Define threshold of significance in bayesian model. Compare output from freq negative binomial and trec. Wei-Yu run frequentist using DSeq2 library, inlcude it in the comparison. Btrecase with and without GT using p054 prior"""
+    input:
+         script="Scripts/mult_testing2.R",
+         geneStEnd=InputPrep(config['geneStEnd']),
+         dseq=expand(config['deseq2in'] + "/RunNBmodelbatch{N}_chr22.nbmodelRes.csv", N=[x+1 for x in range(10)]),
+         gt_rna_p054sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.p054.txt",
+         gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+         sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+         geu_eur=config['EUR-GEU'],
+         geu_chris=config["sig-GEU"]
+    params:
+        freq=config['out'] + "/NB",
+        trec=config['trec'],
+        btrecase=config['out'] + "/Btrecase/SingleCounting/GT"
+    output:
+        pdf="Scripts/mult_testing2.pdf" #,
+        #trec_gt=config['out'] + "/Btrecase/SingleCounting/plots/refbias.gt.trec.rope.png"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/mult_testing2.R"
+
+rule trec_mix:
+    """Run trec changing prior to a mixture of Gaussians. The prior distribution was estimated at the end of mul_testing2 uisng Gtrex data"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel= config['StanModel2'],
+        trecmodel=config['trec_mix'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="trec",
+        pretotalReads=100,
+        out=config['out'] + "/Btrec/MixedPrior"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrec/MixedPrior/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+
+rule install_rasqual:
+    """Install rasqual in /mrc-scratach/ev250/bin. Follow instructions from ~/Genotyping_RNA_seq/Scripts/Install_RASQUAL.sh """
+    input:
+        clap=HTTP.remote("netlib.org/clapack/clapack.tgz", keep_local=True),
+        gsl=FTP.remote("ftp://ftp.gnu.org/gnu/gsl/gsl-latest.tar.gz", keep_local=True)
+    output:
+        config['bin'] + "/clapack.tgz"
+    shell:
+        'mv {input.clap} {config[bin]} ; '
+        'mv {input.gsl} {config[bin]} ; '
+        'cd {config[bin]} ; '
+        'tar zxvf clapack.tar ; '
+        'cd CLAPACK-3.2.1 ; '
+        'mv make.inc.example make.inc ; '
+        'make ;'
+        'ln -s lapack_LINUX.a liblapack.a ; '
+        'ln -s tmglib_LINUX.a libtmglib.a ; '
+        'ln -s blas_LINUX.a libblas.a ; '
+        'cd {config[bin]} ; '
+        'tar zxvf gsl-latest.tar.gz ; '
+        'cd gsl-2.6 ; '
+        './configure --prefix=$PWD ;'
+        'make ;'
+        'make install ; '
+        'cd {config[bin]} ; '
+        'git clone https://github.com/natsuhiko/rasqual ; '
+        'cd rasqual/src ; '
+        'export CFLAGS="-I{config[bin]}/CLAPACK-3.2.1/INCLUDE -I{config[bin]}/CLAPACK-3.2.1/F2CLIBS '
+        '-I{config[bin]}/gsl-2.6" ; '
+        'export LDFLAGS="-L{config[bin]}/CLAPACK-3.2.1/ -L{config[bin]}/CLAPACK-3.2.1/F2CLIBS '
+        '-I{config[bin]}/gsl-2.6/lib" ; '
+        'make ; make install '
+        
+# rule rasqual_inputs:
+#     """Prepare inputs for rasqual"""
+#     input:
+#         counts=config['counts'],
+#         libsize=config['covs'],
+#         snps=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+#         ebg=config['ebg']
+#     params:
+#         cis=5e5,
+#         out=config['out'] + "/rasqual/inputs"
+#     output:
+#         rasq_counts=config['out'] + "/rasqual/inputs/counts.rasqual.bin",
+#         rasq_cov=config['out'] + "/rasqual/inputs/covariates.rasqual_gc.bin",
+#         snps_gene=config['out'] + "/rasqual/inputs/snps_perGene.txt"
+#     script:
+#         "Scripts/rasqual_inputs.R"
+
+# rule rasqual_vcf:
+#     """Replace ID col in vcf with SNP identifier which rasqual uses for SNP ID. Index file afterwords"""
+#     input:
+#         vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22])
+#     output:
+#         out=config['geu_dir'] + "/ASE/DNA/chr{chrom}.ID.ASE.allsamples.vcf.gz"
+#     shell:
+#         "bcftools annotate --set-id '%POS:%REF:%ALT' {input.vcf} -Oz -o {output.out} ; "
+#         "bcftools index -t {output.out} "
+        
+        
+# rule run_rasqual:
+#     """Run rasqual to compare with Btrecase. fSNPs shared by different genes may produce double counting."""
+#     input:
+#         rasqual=config['bin'] + "/rasqual/bin/rasqual",
+#         rasq_counts=config['out'] + "/rasqual/inputs/counts.rasqual.bin",
+#         rasq_txt=config['out'] + "/rasqual/inputs/counts.rasqual.txt",
+#         rasq_cov=config['out'] + "/rasqual/inputs/covariates.rasqual_gc.bin",
+#         snps_gene=config['out'] + "/rasqual/inputs/snps_perGene.txt",
+#         vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ID.ASE.allsamples.vcf.gz", chrom=[22])
+#     params:
+#         cis=5*10**5
+#     threads:
+#         16
+#     output:
+#         out=config['out'] + "/rasqual/output/{gene}.txt"
+#     shell:
+#         "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+#         "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+#         "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+#         "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+#         "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+#         "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+#         "coordstw=$((coordst -{params.cis})) ; "
+#         "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+#         "coordendw=$((coordend+{params.cis})) ; "
+#         "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+#         "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+#         #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+#         "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+#         "-y {input.rasq_counts} "
+#         "-k {input.rasq_cov} "
+#         "-n $ind "
+#         "-j $line "
+#         "-l $rsnp "
+#         "-m $fsnp "
+#         "-s $st "
+#         "-e $end "
+#         "-f {wildcards.gene} "
+#         "--fix-genotype "
+#         "--n-threads {threads} > {output.out} "
+        
+rule trec_mix2:
+    """Run trec changing prior to a mixture of 2  Gaussians, same as mix but with 0.9 and 0.1 mixing props. Need to modify code to accept prior parameter distributions as inputs"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel= config['StanModel2'],
+        trecmodel=config['trec_mix'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="trec",
+        pretotalReads=100,
+        out=config['out'] + "/Btrec/MixedPrior2",
+        prior=[0,0, 0.1387, 0.4605, 0.702, 0.298] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrec/MixedPrior2/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+       
+
+rule trec_mix3:
+    """Run trec changing prior to a mixture of3  Gaussians. The prior distribution was estimated at the end of mul_testing3 uisng Gtrex data"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel= config['StanModel2'],
+        trecmodel=config['trec_mix2'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="trec",
+        pretotalReads=100,
+        out=config['out'] + "/Btrec/MixedPrior3"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrec/MixedPrior3/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+        
+rule run_btrecaseRefBias2Mix_GT:
+    """Run GT associations with and without and refBias correction implementation with uncertainty using 95-99% CI using a mix of 2 gaussians as prior"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        trecmodel=config['trec_mix'],
+        smodel=config['StanGTMix'] ,
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        prefix= "rbias.{gene}",
+        out=config['out'] + "/Btrecase/MixPrior/GT"
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/MixPrior/GT/rbias.{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+rule mult_testing3:
+    """ Define threshold of significance in bayesian model. Test effect of various mixed Gaussians for Bayesian priors. Wei-Yu run frequentist using DSeq2 library, inlcude it in the comparison. """
+    input:
+         script="Scripts/mult_testing3.R",
+         geneStEnd=InputPrep(config['geneStEnd']),
+         dseq=expand(config['deseq2in'] + "/RunNBmodelbatch{N}_chr22.nbmodelRes.csv", N=[x+1 for x in range(10)]),
+         gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+         sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+         lefile=config['legend22']
+         #geu_eur=config['EUR-GEU'],
+         #geu_chris=config["sig-GEU"]
+    params:
+        trec=config['trec'],
+        trec_mix=config['out'] + "/Btrec/MixedPrior",
+        trec_mix2=config['out'] + "/Btrec/MixedPrior2",
+        trec_mix3=config['out'] + "/Btrec/MixedPrior3",
+        rasqual=config['out'] + "/rasqual/output",
+        gt_btrecase_normal=config['out'] + "/Btrecase/SingleCounting/GT",
+        gt_btrecase_m1=config['out'] + "/Btrecase/MixPrior/GT"
+    output:
+        pdf="Scripts/mult_testing3.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/mult_testing3.R"
+
+
+rule trec_spikemix2:
+    """Run trec changing prior to a spike-slab based on a mixture of 2  Gaussians, defined by Chris"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel= config['StanGTMixAny'],
+        trecmodel=config['trec_mixAny'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="trec",
+        pretotalReads=100,
+        out=config['out'] + "/Btrec/SpikeMix2",
+        prior=[0,0, 0.001, 0.2889504, 0.95608798, 0.04391202] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrec/SpikeMix2/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+
+rule trec_spikemixV3:
+    """Run trec changing prior to a spike-slab based on a mixture of 2 or 3  Gaussians, defined by Chris, info from slack ase channel 14/10/19"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        smodel= config['StanGTMixAny'],
+        trecmodel=config['trec_mixAny'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="trec",
+        pretotalReads=100,
+        out=config['out'] + "/Btrec/{prior}",
+        prior=lambda wildcards: [0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] if wildcards.prior == "SpikeMixV3_2" else [0,0,0, 0.02657923, 0.1864999, 0.4681443, 0.948288768, 0.043973294, 0.009097189] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrec/{prior}/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+     
+        
+
+rule run_btrecaseRefBias2MixV3_GT:
+    """Run GT associations with and without and refBias correction implementation with uncertainty using 95-99% CI using a mix of 2 gaussians as prior, version 3. Log files for rbias dont have rbias wildcard (run later) only gene=..."""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        trecmodel=config['trec_mixAny'],
+        smodel=lambda wildcards: config['StanGTMixAny'] if wildcards.rbias == 'rbias' else config['StanGTMixAnyNoBias'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/{prior}/GT",
+        prior=lambda wildcards: [0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] if wildcards.prior == "SpikeMixV3_2" else [0,0,0, 0.02657923, 0.1864999, 0.4681443, 0.948288768, 0.043973294, 0.009097189] # mean, sd and mixing proportion
+    threads:
+        32
+    output:
+        config['out'] + "/Btrecase/{prior}/GT/{rbias}.{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+
+rule run_btrecaseRefBias2MixV3_noGT:        
+    """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-4. Also run with 95-99%CI and with and without refBias correction version 2. change prior for eQTL effect parameter to mixture of priors version 3"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/RNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=lambda wildcards: config['StanNoGTAnyMixrefbias'] if wildcards.rbias == 'rbias' else config['StanNoGTAnyMixNoBias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/{prior}/RNA",
+        prior=lambda wildcards: [0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] if wildcards.prior == "SpikeMixV3_2" else [0,0,0, 0.02657923, 0.1864999, 0.4681443, 0.948288768, 0.043973294, 0.009097189] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/{prior}/RNA/{rbias}.{gene}.noGT.stan.summary.txt"
+    wildcard_constraints:
+        prior='|'. join([re.escape(x) for x in ["SpikeMixV3_2", "SpikeMixV3_3"]]),
+        rbias='|'. join([re.escape(x) for x in ["rbias", "norefbias"]]),
+        gene='|'. join([re.escape(x) for x in genes_GT()])
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+
+
+        
+rule mult_testing4:
+    """ Define threshold of significance in bayesian model. Test effect of various mixed Gaussians for Bayesian priors. Wei-Yu run frequentist using DSeq2 library, inlcude it in the comparison. For simplicty only include the most promising priors (original normal for reference and spikemixV3) """
+    input:
+         script="Scripts/mult_testing4.R",
+         geneStEnd=InputPrep(config['geneStEnd']),
+         dseq=expand(config['deseq2in'] + "/RunNBmodelbatch{N}_chr22.nbmodelRes.csv", N=[x+1 for x in range(10)]),
+         gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+         sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+         lefile=config['legend22'],
+         gt_rna_sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.p054.txt"
+    params:
+        trec=config['trec'],
+        trec_other=expand(config['out'] + "/Btrec/{prior}", prior=["SpikeMixV3_2", "SpikeMixV3_3"]),
+        rasqual=config['out'] + "/rasqual/output",
+        gt_btrecase_normal=config['out'] + "/Btrecase/SingleCounting/GT",
+        gt_btrecase_mix=expand(config['out'] + "/Btrecase/{prior}/GT", prior=["SpikeMixV3_2", "SpikeMixV3_3"]),
+        nogt_mix=expand(config['out'] + "/Btrecase/{prior}/RNA", prior=["SpikeMixV3_2", "SpikeMixV3_3"])
+    output:
+        pdf="Scripts/mult_testing4.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/mult_testing4.R"
+       
+
+rule further_prior:
+    """Further characterise effect sizes with "SpikeMixV3_2". Look at plots per gene, ref bias and more"""
+    input:
+        script="Scripts/geuMixPrior.R",
+        geneStEnd=InputPrep(config['geneStEnd']),
+        lefile=config['legend22'],
+        gt_rna_sum=config['out'] + "/Btrecase/SingleCounting/results/refbias.gt.rna.p054.txt",
+        dseq=expand(config['deseq2in'] + "/RunNBmodelbatch{N}_chr22.nbmodelRes.csv", N=[x+1 for x in range(10)]),
+        gtex= config['EBV'] + "/Cells_EBV-transformed_lymphocytes.allpairs.txt.gz",
+        sigGtex=config['EBV'] + "/Cells_EBV-transformed_lymphocytes.v7.signif_variant_gene_pairs.txt.gz",
+        geu_eur=config['EUR-GEU'],
+        geu_chris=config["sig-GEU"]     ,
+        muther37=config['MuTHER'] + "/MuTHER_cis_results_chr{chrom}_B37.txt"
+    params:
+        trec_other=expand(config['out'] + "/Btrec/{prior}", prior=["SpikeMixV3_2"]),
+        gt_btrecase_mix=expand(config['out'] + "/Btrecase/{prior}/GT", prior=["SpikeMixV3_2"]),
+        rasqual=config['out'] + "/rasqual/output/{gene}.txt",
+        nogt_mix=expand(config['out'] + "/Btrecase/{prior}/RNA", prior=["SpikeMixV3_2"])
+    output:
+        pdf="Scripts/geuMixPrior.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/geuMixPrior.R"
+
+
+rule GTE_QC1:
+    """ Assess effect of genotyping error for eQTL calls. This QC runs fSNPs called from DNA-sequencing but masks genotypes for cis-SNP. Same run as noGT but uses vcf from GT and doesnt restrict minAseSnp, only with ref panel correction. Allows to compare false positives and false negatives due to cis-SNP imputation only (compare with GT)"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=config['StanNoGTAnyMixrefbias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=0,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/QC1/RNA",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/QC1/RNA/{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+    
+rule GTE_QC2_prep:
+    """ Prepares file to run QC2. I need to remove fSNPs not run in run_btrecaseRefBias2MixV3_noGT due to fail to pass Fisher cut-off"""
+    input:
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22])
+    params:
+        FisherDir=expand(config['out'] + "/Btrecase/{prior}/RNA", prior=["SpikeMixV3_2"]),
+        pattern="^rbias\\.ENSG[0-9]+.*fsnps.het.fisher.test.txt"
+    output:
+        out=config['out'] + "/Btrecase/inputs/fSNP/chr22.fSNP.fisher.unique.genes.txt"
+    script:
+        "Scripts/prep_QC2.R"
+
+rule GTE_QC2:
+    """ Assess effect of genotyping error for eQTL calls. This QC runs fSNPs called RNA-seq passing Fisher test and masks genotypes for cis-SNP. Same params as running noGT but uses vcf from GT, only run with ref panel correction. Allows to compare false positives and false negatives due to genotype error and missing values (comparison with noGT)"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.fisher.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=config['StanNoGTAnyMixrefbias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-4,
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/QC2/RNA",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/QC2/RNA/{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"      
+
+rule QC_ufsnps:
+    """I have realised that my function aux2.in2 from /home/ev250/Bayesian_inf/trecase/Functions/aux_btrecase.R is not removing all fsnps that it should. Identify which genes/fsnps need to be removed to make sure is working well. Also re-run genes which may be affected both with and without genotypes."""
+    input:
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.fisher.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs']
+    params:
+        btrecase=expand(config['out'] + "/Btrecase/{prior}/{source}", prior=["SpikeMixV3_2"], source=["GT","RNA"]),
+        rbias=["norefbias", "rbias"],
+        out=config['out'] + "/Btrecase/{prior}/QC"
+    output:
+        qc=config['out'] + "/Btrecase/{prior}/QC/{source}.rerun.txt" 
+    script:
+        "Scripts/qc.ufsnps.R"
+
+
+rule run_prior_control:
+    """ Need to run baseqtl with GT with a weak prior to demonstrate the effect of the informative prior on estimates. I am using Normal(0,sd=10) as it is weak enough and recommended in STAN"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        trecmodel=config['trec_mixAny'],
+        smodel=config['StanGTMixAny'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/weakprior/GT",
+        prior=[0, 10, 1]  # mean, sd and mixing proportion
+    threads:
+        32
+    output:
+        config['out'] + "/Btrecase/weakprior/GT/{gene}.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+rule rasqual_inputs2:
+    """Prepare inputs for rasqual with cis-window 1e5 to see if  the genes that couldnt run with 5e5 can be run"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        snps=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        ebg=config['ebg']
+    params:
+        cis=1e5,
+        out=config['out'] + "/rasqual/inputs/cis10_5"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/cis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/cis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/cis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/cis10_5/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+
+    
+        
+rule run_rasqual2:
+    """Run rasqual to compare with Btrecase, use cis window 10^5 to see if I can run all genes. fSNPs shared by different genes may produce double counting."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/cis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/cis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/cis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/snps_perGene.txt",
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ID.ASE.allsamples.vcf.gz", chrom=[22])
+    params:
+        cis=10**5
+    threads:
+        16
+    output:
+        out=config['out'] + "/rasqual/output/cis10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+               
+rule run_fisher_fsnps:
+    """Check whether the frequency of genotypes called by RNA-seq is different from the frequency in the reference panel for the same population to establish cut-off for exlcusion of fSNPs"""
+    input:
+        sample=config['sample'],
+        vcf=expand(config['geu_dir'] + "/ASE/RNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22])
+    params:
+        rna_stan=config['out'] + "/Btrecase/SpikeMixV3_2/RNA", ## genes run in RNA
+        dna_dir=config['out'] + "/Btrecase/SpikeMixV3_2/GT", ## dir to DNA to select fSNPs
+        dna_fsnps="rbias.ENSG[0-9]+.*.\\.GT.fsnps.with.counts.rds", ## pattern for files in dna_dir with fsnps used for inference
+        population="EUR"
+    threads:
+        16
+    output:
+        out=config['out'] + "/Btrecase/QCfSNP/fisher.fSNPs.txt"
+    script:
+        "Scripts/QCFisherfSNPs.R"
+    
+rule HWE_QC:
+    """Look for alternatives to testing the frequency of genotypes called by RNA-seq is different from the frequency in the reference panel. Try HWE and test whether allele counts match between sample and reference panel. Select fSNPs per sample above depth cut-off"""
+    input:
+        sample=config['sample'],
+        vcf=config["vcf_rna_depth"] , ## vcf with depth
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22])
+    params:
+        rna_stan=config['out'] + "/Btrecase/SpikeMixV3_2/RNA", ## genes run in RNA
+        dna_dir=config['out'] + "/Btrecase/SpikeMixV3_2/GT", ## dir to DNA to select fSNPs
+        dna_fsnps="rbias.ENSG[0-9]+.*.\\.GT.fsnps.with.counts.rds", ## pattern for files in dna_dir with fsnps used for inference
+        population="EUR",
+        depth=10 # min depth required for a fSNP call to be included
+    threads:
+        16
+    output:
+        out=config['out'] + "/Btrecase/QCfSNP/HWE.fSNPs.txt"
+    script:
+        "Scripts/HWEplus.R"
+
+
+rule compare_GTQC:
+    """Compare Fisher test of het proportion between sample and ref panel with HWE and and allele match between sample and ref panel"""
+    input:
+        fisher_het=config['out'] + "/Btrecase/QCfSNP/fisher.fSNPs.txt",
+        HW=config['out'] + "/Btrecase/QCfSNP/HWE.fSNPs.txt",
+        dna=config["vcf_GT"], 
+        rna=config["vcf_rna_depth"] ,
+        eSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]), ## vcf with depth
+        script="Scripts/GT_QC.R",
+    params:
+        rna_stan=config['out'] + "/Btrecase/SpikeMixV3_2/RNA", ## genes run in RNA
+        dna_dir=config['out'] + "/Btrecase/SpikeMixV3_2/GT", ## dir to DNA to select fSNPs
+        dna_fsnps="rbias.ENSG[0-9]+.*.\\.GT.fsnps.with.counts.rds", ## pattern for files in dna_dir with fsnps used for inference
+        depth=10 # min depth required for a fSNP call to be included
+    output:
+        pdf="Scripts/GT_QC.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/GT_QC.R"
+        
+rule run_fisher001_noGT:        
+    """Run associations excluding fSNPs with p-value for Fisher test lower than 10^-2. Also run with 95-99%CI and with and without refBias correction version 2. change prior for eQTL effect parameter to mixture of priors version 3"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/RNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        sample=config['sample'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=lambda wildcards: config['StanNoGTAnyMixrefbias'] if wildcards.rbias == 'rbias' else config['StanNoGTAnyMixNoBias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-2,
+        pretotalReads=100,
+        prefix= "{rbias}.{gene}",
+        out=config['out'] + "/Btrecase/SpikeMixV3_2/{fisher}/RNA",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836]  # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/SpikeMixV3_2/{fisher}/RNA/{rbias}.{gene}.noGT.stan.summary.txt"
+    wildcard_constraints:
+        fisher='fisher001',
+        rbias='|'.join(x for x in ["rbias", "norefbias"])
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+
+
+rule test_rasqual_AS_input:
+    """Rasqual inputs counts for homozygous individuals as 0|0:5,0 and 1|1,0:3 even if they are not ASE. Make the rasqual data example as my input and see how affects rasqual output. Also make a cotnrol with RSQ=1 for equal comparison"""
+    input:
+        data=config['bin'] + "/rasqual/data/chr11.gz"
+    params:
+        ext=["mod", "control"],
+    output:
+        data2=expand(config['bin'] + "/rasqual/data/chr11{test}.tab", test=["mod", "control"])
+    script:
+        "Scripts/rasq.mod.R"
+
+rule test_rasq_vcf:
+    """Make vcf with GT:ASE field"""
+    input:
+        head=config['bin'] + "/rasqual/data/chr11.gz" ,
+        body=config['bin'] + "/rasqual/data/chr11{test}.tab"
+    output:
+        vcf=config['bin'] + "/rasqual/data/chr11{test}.gz",
+        idx=config['bin'] + "/rasqual/data/chr11{test}.gz.tbi"
+    shell:
+        "tmp=$(echo {config[bin]}/rasqual/data/chr11{wildcards.test}); "
+        "bcftools view {input.head} -h > $tmp ; "
+        "cat {input.body} >> $tmp ; "
+        "bgzip $tmp ; "
+        "bcftools index -t {output.vcf} ;"
+        
+rule run_rasqual_test:
+    """Run rasqual with rasqual provided inputs or my input."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['bin'] + "/rasqual/data/Y.bin",
+        rasq_cov=config['bin'] + "/rasqual/data/K.bin",
+        vcf=config['bin'] + "/rasqual/data/chr11{test}.gz"
+    params:
+        n=24,
+        l=378,
+        j=lambda wildcards: 1 if wildcards.gene == 'C11orf21' else 2,
+        m=lambda wildcards: 62 if wildcards.gene == 'C11orf21' else 60,
+        s=lambda wildcards: ["2316875,2320655,2321750,2321914,2324112"] if wildcards.gene == 'C11orf21' else ["2323227,2323938,2324640,2325337,2328175,2329966,2330551,2331219,2334884,2335715,2338574,2339093"],
+        e=lambda wildcards: ["2319151,2320937,2321843,2323290,2324279" ] if wildcards.gene == 'C11orf21' else ["2323452,2324188,2324711,2325434,2328220,2330040,2330740,2331248,2334985,2337897,2338755,2339430"],
+    threads:
+        16
+    output:
+        out=config['bin'] + "/rasqual/data/output/{gene}.{test}.txt"
+    shell:
+        "tabix {input.vcf} 11:2315000-2340000  |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n {params.n} "
+        "-j {params.j} "
+        "-l {params.l} "
+        "-m {params.m} "
+        "-s {params.s} "
+        "-e {params.e} "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+      
+rule rasq_output_check:
+    """Compare rasqual output with test files"""
+    input:
+        scripts="Scripts/rasqual.ASE.test.R",
+        rasq=expand(config['bin'] + "/rasqual/data/output/{gene}.{test}.txt" , gene=["C11orf21", "TSPAN32"], test=["control", "mod"]),
+        rasqheader=config['out'] + "/rasqual/output/rasqual.header.txt",
+    output:
+        "Scripts/rasqual.ASE.test.pdf"
+    script:
+        #"Scripts/RenderReport.R"
+        "Scripts/rasqual.ASE.test.R"
+
+
+rule count_Hom:
+    """ Rasqual uses total ASE field for homozygous as the total allelic counts and not the haplotypic counts. I need to add this# info to the vcf file. I use my python function from reference panel bias post remapping """
+    input:
+        bam=expand(config['out'] + "/inputs/bam/{{sample}}.chrom{chrom}.MapUnique.bam", chrom=['22']),
+        fsnps=expand(config['out'] + "/inputs/fSNP/chr{chrom}.fSNP.RP.genes.txt", chrom=['22'])
+    output:
+        counts=config["out"] + "/rasqual/allele_counts/{sample}.alleleCounts.txt"
+    params:
+        snp_dir=config['out'] + "/inputs/fSNP",
+        output_dir=config['out'] + "/rasqual/allele_counts"
+    shell:
+        "tmp=$(basename -s .bam {input.bam}) ; "
+        "python {config[refbias_dir]}/intersecting_snps_post_remap.py "
+        " --is_paired_end --is_sorted "
+        " --output_dir {params.output_dir} "
+        " --snp_dir {params.snp_dir} "
+        " {input.bam} ; "
+        " mv {params.output_dir}/$tmp.post_remapping_AI.txt {params.output_dir}/{wildcards.sample}.alleleCounts.txt "
+        
+rule rasqual_vcf:
+    """Add counts for hom fSNPs into vcf to make rasqual input"""
+    input:
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ID.ASE.allsamples.vcf.gz", chrom=[22]),
+        allelicCounts=expand(config["out"] + "/rasqual/allele_counts/{sample}.alleleCounts.txt", sample=samples()),
+    output:
+        out=config["out"] + "/rasqual/inputs/corrected/vcf_prep/body.tab"
+    script:
+        "Scripts/rasqual_vcf.R"
+        
+rule rasq_vcf2:
+    """Make vcf with GT:ASE field as defined bt rasqual. Use previous vcf for header"""
+    input:
+        head= expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ID.ASE.allsamples.vcf.gz", chrom=[22]),
+        body=config["out"] + "/rasqual/inputs/corrected/vcf_prep/body.tab"
+    output:
+        vcf=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz",
+        idx=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz.tbi"
+    shell:
+        "tmp=$(echo {config[out]}/rasqual/inputs/corrected/rasq.vcf); "
+        "bcftools view {input.head} -h > $tmp ; "
+        "cat {input.body} >> $tmp ; "
+        "bgzip $tmp ; "
+        "bcftools index -t {output.vcf} ;"
+
+rule rasqual_inputs3:
+    """Prepare inputs for rasqual with new input vcf, number of fsnps may be different"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        snps=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz",
+        ebg=config['ebg']
+    params:
+        cis=5e5,
+        out=config['out'] + "/rasqual/inputs/corrected"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/corrected/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/corrected/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/corrected/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/corrected/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+
+    
+rule run_rasqual3:
+    """Run rasqual to compare with Btrecase, total counts for fSNPs for rasqual. fSNPs shared by different genes may produce double counting."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/corrected/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/corrected/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/corrected/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/corrected/snps_perGene.txt",
+        vcf=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz"
+    params:
+        cis=5*10**5
+    threads:
+        16
+    output:
+        out=config['out'] + "/rasqual/outCounts/cis5_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+
+rule rasqual_inputs4:
+    """Prepare inputs for rasqual with new input vcf, number of fsnps may be different, cis window 10^5"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        snps=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz",
+        ebg=config['ebg']
+    params:
+        cis=1e5,
+        out=config['out'] + "/rasqual/inputs/correctedCis10_5"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/correctedCis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/correctedCis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/correctedCis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/correctedCis10_5/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+
+    
+rule run_rasqual4:
+    """Run rasqual to compare with Btrecase, small cis window, total counts for fSNPs for rasqual. fSNPs shared by different genes may produce double counting."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/correctedCis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/correctedCis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/correctedCis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/correctedCis10_5/snps_perGene.txt",
+        vcf=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz"
+    params:
+        cis=1*10**5
+    threads:
+        16
+    output:
+        out=config['out'] + "/rasqual/outCounts/cis1_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+                
+rule GTE_QC1_F:
+    """ Same as GTE_QC1 but without Fisher cut-off as there is no GT error, vcf is DNA, only looking at the effect of imputation"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        sample=config['sample'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=config['StanNoGTAnyMixrefbias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=0,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-20,
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/QC1_F/RNA",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/QC1_F/RNA/{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"        
+    
+rule GTE_QC2_prep_F:
+    """ Same as GTE_QC2_prep but with change of Fisher"""
+    input:
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22])
+    params:
+        FisherDir=expand(config['out'] + "/Btrecase/{prior}/fisher001/RNA", prior=["SpikeMixV3_2"]),
+        pattern="^rbias\\.ENSG[0-9]+.*fsnps.het.fisher.test.txt",
+        pfsnp=10**-2,
+    output:
+        out=config['out'] + "/Btrecase/inputs/fSNP/chr22.fSNP.fisher001.unique.genes.txt"
+    script:
+        "Scripts/prep_QC2.R"
+
+rule GTE_QC2_F:
+    """ Same as GTE_QC2 but with new Fisher cut-off"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.fisher001.unique.genes.txt", chrom=[22]),
+        eSNPs=config['fSNPs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        sample=config['sample'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt",
+        model=config['StanNoGTAnyMixrefbias']
+    params:
+        chrom=22,
+        snps=5*10**5,
+        pop="EUR",
+        maf=0.05,
+        minAse=5,
+        minAseSnp=5,
+        minAseN=5,
+        tag=0.9,
+        info=0.3,
+        pfsnp=10**-2,
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/QC2_F/RNA",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836] # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/QC2_F/RNA/{gene}.noGT.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.R"      
+                 
+
+rule run_mapk1_GT:
+    """Run GT associations with and without and refBias correction implementation with uncertainty using 95-99% CI using a mix of 2 gaussians as prior, version 3. I have included PEP col, re-run for mapk1 and reduced cis-window to speed up."""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        eSNPs=config['fSNPs'],
+        ueSNPS= expand(config['out'] + "/Btrecase/inputs/fSNP/chr{chrom}.fSNP.unique.genes.txt", chrom=[22]),
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+        trecmodel=config['trec_mixAny'],
+        smodel=config['StanGTMixAny'],
+        AI=config["out"] + "/post_remap/pre_post_AI.txt"
+    params:
+        chrom=22,
+        gene="ENSG00000100030",
+        snps=10**5,
+        pop="EUR",
+        tag=0.9,
+        model="both",
+        pretotalReads=100,
+        out=config['out'] + "/Btrecase/SpikeMixV3_2/PEP/GT",
+        prior=[0,0, 0.0309, 0.3479, 0.97359164, 0.02640836]  # mean, sd and mixing proportion
+    threads:
+        16
+    output:
+        config['out'] + "/Btrecase/SpikeMixV3_2/PEP/GT/ENSG00000100030.stan.summary.txt"
+    script:
+        "Scripts/run_BtrecaseRefBias.GT.R"
+
+rule sum_r_EUR_rsnps:
+    """ Given the path for stan summaries with and without gt calculate r between rsnps (both run with and without gt) per gene selecting a group of individuals only (EUR) from reference panel. Similar to "Scripts/skin_sumr" from psoriasis/run_btrecase/refbias snakefile."""
+    input:
+        gene_coord=config['geneInfo'],
+        sample=config['sample'],
+        leRef=config['legend22'],        
+        hapRef=config['hap22'],
+    params:       
+        group="EUR",
+        btrecase=expand(config['out'] + "/Btrecase/SpikeMixV3_2/{source}", source=["GT", "fisher001/RNA"]),
+        out_dir=config['out'] + "/Btrecase/objects"
+    threads:
+        16
+    output:
+        r=config['out'] + "/Btrecase/objects/EURr.rds",
+    script:
+        "Scripts/sumr.R"    
+
+rule lm_logcounts:
+    """Calculate eQTL estimates using linear model on log counts adjusted by library size"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22])
+    params:
+        chrom=22,
+        snps=5*10**5,
+        tag=0.9,
+        pval="yes",
+        out=config['out'] + "/lm/log_counts"
+    output:
+        config['out'] + "/lm/log_counts/{gene}.lm.summary.txt"
+    script:
+        "Scripts/run_lm.R"
+     
+rule run_lm_desq2inputs:
+    """Run lm with the inputs I made for Wei-Yu in the same way and see if I get same results"""
+    input:
+       counts=config['deseq2in'] + "/b37_filtered.raw_counts.txt",
+       libsize=config['deseq2in'] + "/library.size.comp.rds",
+       genecoord=config['geneInfo'],
+       gt=config['deseq2in'] + "/chr22.GT.geuvardis.rds",
+       tags2run=config['deseq2in'] + "/BTrecBTrecASE.txt",
+    params:
+        chrom=22,
+        tag="no",
+        pval="yes",
+        out=config['out'] + "/lm/deseq2In"
+    output:
+        config['out'] + "/lm/deseq2In/{gene}.lm.summary.txt"
+    script:
+        "Scripts/run_lm.R"
+
+            
+rule comp_lm:
+    """Compare lm run with deseq2 inputs"""
+    input:
+        lm1=expand(config['out'] + "/lm/log_counts/{gene}.lm.summary.txt", gene=genes_GT()),
+        lm2=expand(config['out'] + "/lm/deseq2In/{gene}.lm.summary.txt", gene=genes_GT()),
+        script="Scripts/comp_lm.R"
+    output:
+        out="Scripts/comp_lm.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/comp_lm.R"
+
+rule imp_small_sample_size:
+    """Prepare inputs of smaller sample size to run with rasqual and lm to comare results with rasqual sup Fig4 and Fig2. Try 5 and 25 individuals. Prepare a txt file with sample name per line to subset vcf using"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],       
+    params:
+        sample=[5, 25],
+        out=config['out'] + "/inputs/sample5_25"
+    output:
+        counts=expand(config['out'] + "/inputs/sample5_25/b37_filtered.raw_counts.{size}inds.txt", size=[5,25]),
+        libsize=expand(config['out'] + "/inputs/sample5_25/library.size.{size}inds.rds" , size=[5,25]),
+        samples=expand(config['out'] + "/inputs/sample5_25/samples.{size}inds.txt" , size=[5,25])
+    script:
+        "Scripts/inputs.size.R"
+       
+
+rule imp_small_sample_size_vcf:
+    """Work with rasqual vcf for both lm and rasqual."""
+    input:
+        vcf=config['out'] + "/rasqual/inputs/corrected/rasq.vcf.gz",
+        samples=config['out'] + "/inputs/sample5_25/samples.{size}inds.txt" 
+    output:
+        vcf=config['out'] + "/inputs/sample5_25/rasq.vcf.{size}inds.vcf.gz" ,
+        idx=config['out'] + "/inputs/sample5_25/rasq.vcf.{size}inds.vcf.gz.tbi" 
+    shell:
+        "bcftools view -S {input.samples} -Oz -o {output.vcf} {input.vcf} ; "
+        "bcftools index -t {output.vcf} ; "
+
+rule rasqual_inputs_small:
+    """Prepare inputs for rasqual for samll sample sizes. Use cis-window of 10^5 to run more genes"""
+    input:
+        counts=config['out'] + "/inputs/sample5_25/b37_filtered.raw_counts.{size}inds.txt",
+        libsize=config['out'] + "/inputs/sample5_25/library.size.{size}inds.rds" ,
+        snps=config['out'] + "/inputs/sample5_25/rasq.vcf.{size}inds.vcf.gz" ,
+        ebg=config['ebg']
+    params:
+        cis=1e5,
+        out=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/counts.rasqual.bin",
+        # rasq_txt=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/counts.rasqual.txt",
+        # rasq_cov=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.bin",
+        # snps_gene=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+        
+               
+rule run_rasqual_small:
+    """Run rasqual with small cis window and small sample sizes and compare to lm."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/correctedCis10_5/snps_perGene.txt",
+        vcf=config['out'] + "/inputs/sample5_25/rasq.vcf.{size}inds.vcf.gz",
+    params:
+        cis=1*10**5
+    threads:
+        16
+    output:
+        out=config['out'] + "/rasqual/out{size}/cis1_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+       
+rule lm_cov:
+    """Make covariate based on gc content (rasqual function) as "rds" for input in lm or baseqtl. I cannot use the file I made for rasqual inputs because it was saved without sample names"""
+    input:
+        counts=[expand(config['out'] + "/inputs/sample5_25/b37_filtered.raw_counts.{size}inds.txt", size=[5,25]),
+        config['counts']]
+    output:
+        gc_cov=[expand(config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.rds", size=[5,25]),config['out'] + "/rasqual/inputs/correctedCis10_5/covariates.rasqual_gc.rds"]
+    script:
+        "Scripts/counts2gclibsize.R"
+        
+
+rule lm_size:
+    """Calculate eQTL estimates using linear model on log counts adjusted by gc corrected library size for small sample size and small cis-window. Avoid tagging function by restriting analysis to previously computed tags. Remove requirement for nhets, lm internally remove snps if all inds are of the same GT"""
+    input:
+        counts=config['out'] + "/inputs/sample5_25/b37_filtered.raw_counts.{size}inds.txt",
+        libsize=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.rds",
+        genecoord=config['geneInfo'],
+        vcf=config['out'] + "/inputs/sample5_25/rasq.vcf.{size}inds.vcf.gz",
+        tags2run=config['deseq2in'] + "/BTrecBTrecASE.txt",
+    params:
+        chrom=22,
+        snps=10**5,
+        tag="no",
+        pval="yes",
+        nhets=0,
+        out=config['out'] + "/lm/Inds{size}"
+    output:
+        config['out'] + "/lm/Inds{size}/{gene}.lm.summary.txt"
+    script:
+        "Scripts/run_lm.R"
+
+rule lm_gc:
+    """ Run lm with 86 sample inputs but adjusting by gc corrected library size to assess effect of correction, small cis-window"""
+    input:
+        counts=config['counts'],
+        libsize=config['out'] + "/rasqual/inputs/correctedCis10_5/covariates.rasqual_gc.rds",
+        genecoord=config['geneInfo'],
+        vcf=expand(config['geu_dir'] + "/ASE/DNA/chr{chrom}.ASE.allsamples.vcf.gz", chrom=[22]),
+        tags2run=config['deseq2in'] + "/BTrecBTrecASE.txt",
+    params:
+        chrom=22,
+        snps=10**5,
+        tag="no",
+        pval="yes",
+        out=config['out'] + "/lm/Inds86_gclibsize"
+    output:
+        config['out'] + "/lm/Inds86_gclibsize/{gene}.lm.summary.txt"
+    script:
+        "Scripts/run_lm.R"
+
+        
+
+rule rasq_in_ase:
+    """ Prepare a list of bam files to use for making rasqual input from rasqual code to make sure rasqual is running as it should. Take vcf with GT, get sample names in right order and make a list of bam files full name."""
+    input:
+        vcf=config['geu_dna'] + "/chr22.1KGP_P3.vcf.gz"
+    params:
+        bam_dir=config['out'] + "/inputs/bam",
+        bam_pat=".chrom22.MapUnique.bam"
+    output:
+        bam_list=config['out'] + "/rasqual/inputs/rasq_ase/bamlist"
+    shell:
+        "samp=$(bcftools view {input.vcf} -h | grep CHROM  |  awk '{{for(i=1;i<=NF;i++){{ if($i  ~ /^HG/ ){{print $i}} }} }}') ; "
+        "touch {output.bam_list} ;"
+        "for s in $samp; "
+        "do "
+        "f=$(ls {params.bam_dir}/$s{params.bam_pat} ); "
+        "printf '%s\n' $f >> {output.bam_list}; "  
+        "done "
+
+rule rasq_ase:
+    """Prepare GT:ASE file using rasqual code """
+    input:
+        vcf=config['geu_dna'] + "/chr22.1KGP_P3.vcf.gz",
+        bam_list=config['out'] + "/rasqual/inputs/rasq_ase/bamlist",
+        script=config['bin'] + "/rasqual/src/ASVCF/createASVCF.sh",
+    params:
+        reads="paired_end",
+        rasq_dir=config['bin'] + "/rasqual",
+        assay_type="rna"
+    output:
+        vcf=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz",
+        idx=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz.tbi"
+    shell:
+        "export RASQUALDIR={params.rasq_dir} ;"
+        "cd {params.rasq_dir} ; "
+        "bash {input.script} {params.reads} {input.bam_list} {input.vcf} {output.vcf} {params.assay_type} ;"
+        "bcftools index -t {input.vcf} "
+        
+
+       
+rule rasq_ase_inputs:
+    """Prepare inputs for running rasqual with ase counts from rasqual code"""
+    input:
+        counts=config['counts'],
+        libsize=config['covs'],
+        snps=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz",
+        ebg=config['ebg']
+    params:
+        cis=1e5,
+        out=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.bin",
+        # rasq_txt=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.txt",
+        # rasq_cov=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/covariates.rasqual_gc.bin",
+        # snps_gene=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+
+
+rule run_rasqual_ase:
+    """Run rasqual with small cis window using rasqual code to prepare GT:ASE field in vcf."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/snps_perGene.txt",
+        vcf=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz"
+    params:
+        cis=1*10**5
+    threads:
+        1
+    output:
+        out=config['out'] + "/rasqual/outASE/cis1_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+
+        
+rule run_rasqual_ase_per:
+    """Run rasqual with small cis window using rasqual code to prepare GT:ASE field in vcf. Add permutation test option. This run permutes total and ase counts across individuals to test whether eQTL effects are observed by chance. Used to calculate FDR as in rasqal paper"""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/rasq_ase/Cis10_5/snps_perGene.txt",
+        vcf=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz"
+    params:
+        cis=1*10**5
+    threads:
+        1
+    output:
+        out=config['out'] + "/rasqual/outASE_per/cis1_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "-r "
+        "--n-threads {threads} > {output.out} "
+      
+rule imp_small_sample_size_vcf_ase:
+    """Work with rasqual vcf for both lm and rasqual. Need to repeat using vcf with correct "ase" counts ofr rasqual"""
+    input:
+        vcf=config['out'] + "/rasqual/inputs/rasq_ase/chr22.86.vcf.gz",
+        samples=config['out'] + "/inputs/sample5_25/samples.{size}inds.txt" 
+    output:
+        vcf=config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz" ,
+        idx=config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz.tbi" 
+    shell:
+        "bcftools view -S {input.samples} -Oz -o {output.vcf} {input.vcf} ; "
+        "bcftools index -t {output.vcf} ; "
+
+rule rasqual_inputs_small_ase:
+    """Prepare inputs for rasqual for samll sample sizes. Use cis-window of 10^5 to run more genes"""
+    input:
+        counts=config['out'] + "/inputs/sample5_25/b37_filtered.raw_counts.{size}inds.txt",
+        libsize=config['out'] + "/inputs/sample5_25/library.size.{size}inds.rds" ,
+        snps=config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz" ,
+        ebg=config['ebg']
+    params:
+        cis=1e5,
+        out=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase"
+    output:
+        rasq_counts=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/counts.rasqual.bin",
+        # rasq_txt=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/counts.rasqual.txt",
+        # rasq_cov=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/covariates.rasqual_gc.bin",
+        # snps_gene=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5/snps_perGene.txt"
+    script:
+        "Scripts/rasqual_inputs.R"
+            
+            
+rule run_rasqual_small_ase:
+    """Run rasqual with small cis window and small sample sizes and compare to lm."""
+    input:
+        rasqual=config['bin'] + "/rasqual/bin/rasqual",
+        rasq_counts=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/counts.rasqual.bin",
+        rasq_txt=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/counts.rasqual.txt",
+        rasq_cov=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/covariates.rasqual_gc.bin",
+        snps_gene=config['out'] + "/rasqual/inputs/Inds{size}.Cis10_5.ase/snps_perGene.txt",
+        vcf=config['out'] + "/inputs/sample5_25_ase/rasq.vcf.{size}inds.vcf.gz",
+    params:
+        cis=1*10**5
+    threads:
+        16
+    output:
+        out=config['out'] + "/rasqual/out{size}ase/cis1_10_5/{gene}.txt"
+    shell:
+        "chr=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f4) ; "
+        "fsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f2) ; "
+        "rsnp=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f3) ; "
+        "st=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f6) ; "
+        "end=$(grep {wildcards.gene} {input.snps_gene} | cut -d ' ' -f7) ; "
+        "coordst=$(echo $st | sed 's/,.*//') ; " ## to get start of cis-window
+        "coordstw=$((coordst -{params.cis})) ; "
+        "coordend=$(echo $end | sed 's/.*,//') ; " ## to get end of cis-window
+        "coordendw=$((coordend+{params.cis})) ; "
+        "ind=$(awk 'NR==1{{print NF}} ' {input.rasq_txt}) ; ind=$((ind-1)) ;" ## number of ind removing first col (gene_id)
+        "line=$(grep -n {wildcards.gene} {input.rasq_txt} | cut -d: -f 1) ; " ## line number for gene in count matrix
+        #"echo $chr $fsnp $rsnp $coordst $coordstw $coordend $coordendw $ind $line "
+        "tabix {input.vcf} $chr:$coordstw-$coordendw |  {input.rasqual} "
+        "-y {input.rasq_counts} "
+        "-k {input.rasq_cov} "
+        "-n $ind "
+        "-j $line "
+        "-l $rsnp "
+        "-m $fsnp "
+        "-s $st "
+        "-e $end "
+        "-f {wildcards.gene} "
+        "--fix-genotype "
+        "--n-threads {threads} > {output.out} "
+  
+                    
+rule external_validity:
+    """Assess external validity/benchmarking of different models"""
+    input:
+        script="Scripts/external.validity.R",
+        #geneStEnd=InputPrep(config['geneStEnd']),
+        dseq=expand(config['deseq2in'] + "/{model}/{model}batch{N}_chr22.nbmodelRes.csv", model=["RunNBmodelshrinkage"], N=[x+1 for x in range(10)]), ## 86 inds, internal normalization
+        geu_chris=config["sig-GEU"],
+        geu_egenes=config["geu_arrayX"] + "/EUR373.gene.cis.FDR5.best.rs137.txt.gz",
+        rasqual_header=config['out'] + "/rasqual/output/rasqual.header.txt"
+    params:
+        btrecase=expand(config['out'] + "/Btrecase/SpikeMixV3_2/{source}", source=["GT"]), ## 86 inds, lib size not adjusted by gc content
+        lm_86=expand(config['out'] + "/lm/{cond}", cond=["log_counts","Inds86_gclibsize" ]), ## 86 samples by gc content lib size adjustment
+        lm_size=expand(config['out'] + "/lm/Inds{size}", size=[5,25]), ## lib size adjusted by gc content
+        rasqual_per=config['out'] + "/rasqual/outASE_per/cis1_10_5", ## rasqual smaller cis-window, 86 inds, permutation pvalue
+        rasqual_86=config['out'] + "/rasqual/outASE/cis1_10_5",
+        rasqual_size=expand(config['out'] + "/rasqual/out{size}/cis1_10_5", size=[5,25]),
+        rbias=["rbias"],
+    output:
+        out="Scripts/external.validity.pdf"
+    script:
+        "Scripts/RenderReport.R"
+        #"Scripts/external.validity.R"
+
+        
+                                            
+## snakemake  -k -j 500 --cluster-config cpu.json --cluster "sbatch -A {cluster.account} -p {cluster.partition}  -c {cluster.cpus-per-task}   -t {cluster.time} --output {cluster.error} -J {cluster.job} "
+
+## snakemake  -k -j 500 --cluster-config himem.json --cluster "sbatch -A {cluster.account} -p {cluster.partition}  -c {cluster.cpus-per-task}   -t {cluster.time} --output {cluster.error} -J {cluster.job} "
+
+## ENSG00000100364 for himem

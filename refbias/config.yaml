@@ -1,0 +1,206 @@
+#
+# This is the Snakemake configuration file that specifies paths and 
+# and options for the mapping pipeline
+#
+
+{
+
+
+    # path to directory with quantification of gEUVADIS samples, many sub dirs in it (ASE,shapeit,STAR, etc) 
+    "geu_dir" : "/mrc-bsu/scratch/ev250/EGEUV1/quant",
+
+    # path to dir with DNA vcfs
+
+    "geu_dna" : "/mrc-bsu/scratch/ev250/EGEUV1/DNA",
+    
+    # ebg file
+
+    "ebg": "/mrc-bsu/scratch/ev250/EGEUV1/quant/RNA_counts/b37_ebg.rds",
+
+    # path to legend files
+    "legend" : "/home/ev250/rds/rds-cew54-wallace-share/Data/reference/1000GP_Phase3",
+
+    # REFBIAS directory containing scripts
+    "refbias_dir" : "/home/ev250/bin/RefBias",
+
+    # File downloaded with WASP with chrom/length
+    "chromLength": "/mrc-bsu/scratch/ev250/bin/WASP/examples/example_data/chromInfo.hg19.txt",
+
+    # output dir
+    "out": "/mrc-bsu/scratch/ev250/EGEUV1/quant/refbias",
+
+    # samples in RNA and DNA
+    "samples": '/mrc-bsu/scratch/ev250/EGEUV1/quant/call_vars/b37/samples.txt',
+
+    # path to STAR
+    "STAR" : "/mrc-bsu/scratch/ev250/bin/STAR/source/STAR",
+
+    # files to make STAR indices
+    "ref_fasta" : "/home/ev250/rds/hpc-work/reference_genome/built37/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
+
+    "ref_gtf" :  "/home/ev250/rds/hpc-work/reference_genome/built37/Homo_sapiens.GRCh37.87.gtf",
+    
+    "indices" : "/mrc-bsu/scratch/ev250/reference_genome/built37/indices",
+
+    # full name to stan summary from prevoius runs (lm, gt,rna99, etc) to select genes to run
+    "stan": "/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/output/chr22/RNAnoGTrsnp/compare.trec.gt.rna.wide.txt",
+
+    # dir name for stan output run on rna99 without ref bias correction
+
+    "rna99_noRefBiasCorrec": '/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/output/chr22/RNAnoGTrsnp',
+      
+    # file with total RNA-seq counts to use in model
+
+    "counts": '/mrc-bsu/scratch/ev250/EGEUV1/quant/RNA_counts/b37_filtered.raw_counts.txt',
+
+    # file with covariate information for model
+
+    "covs": '/mrc-bsu/scratch/ev250/EGEUV1/quant/RNA_counts/library.size.comp.rds',
+
+    # file with coordinates for fSNPs for chromosome 22
+
+    "fSNPs": '/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/input/chr22.fSNPs.txt',
+      
+    # Gene exon start, exon end, chrom, by longest transcript length
+
+    "geneInfo": "/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/input/gene_data_longest.exons.txt",
+
+    # file with gene info, start, end, etc
+
+    'geneStEnd' : "/mrc-bsu/scratch/ev250/psoriasis/Btrecase/inputs/gene_inputs/gene_info.txt",
+    
+
+    # vcf file with genotypes for fSNPs only (RNA)
+
+    "vcf": '/mrc-bsu/scratch/ev250/EGEUV1/quant/ASE/RNA/chr22.ASE.allsamples.vcf.gz',
+
+    # vcf with genotypes fSNPs and rSNPs
+
+    "vcf_GT": '/mrc-bsu/scratch/ev250/EGEUV1/quant/ASE/chr22.ASE.allsamples.vcf.gz',
+
+    # vcf file with fSNPs only (RNA) and with depth by fSNP and sample
+
+    "vcf_rna_depth": '/mrc-bsu/scratch/ev250/EGEUV1/quant/call_vars/b37/HG96_2215_chr22_q20.txt',
+
+    # sample file for reference panel
+    'sample': "/home/ev250/rds/rds-cew54-wallace-share/Data/reference/1000GP_Phase3/1000GP_Phase3.sample",
+
+    # legend file for chrom22 
+    'legend22' : "/home/ev250/rds/rds-cew54-wallace-share/Data/reference/1000GP_Phase3/1000GP_Phase3_chr22.legend.gz",
+
+    # hap file for chrom22
+
+    'hap22': '/home/ev250/rds/rds-cew54-wallace-share/Data/reference/1000GP_Phase3/1000GP_Phase3_chr22.hap.gz',
+
+   
+    # file with AI_post set to 0.5 for gene  "ENSG00000128340" only for QC purposes
+
+    'AI_QC': '/mrc-bsu/scratch/ev250/EGEUV1/quant/refbias/post_remap/ENSG00000128340.fake_post_AI.txt',
+    
+    # file with dir with summaries for GT without ref bias correction
+
+    'GT_old': '/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/output/chr22/GT/BtrecaseV2',
+
+    # file with dir with summaries for trec (bayesian)
+
+    'trec': '/mrc-bsu/scratch/ev250/EGEUV1/quant/Btrecase/output/chr22/GT',
+
+    #stan ASE model without ref bias correction for GT
+
+    'StanGTNoBias' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.priors.eff2.stan',
+
+    # stan model to run ref bias correction version 1 with GT
+
+    'StanModel1' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.priors.refBias.stan',
+
+    # stan model ref bias correction version 2 with GT
+
+    'StanModel2' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.priors.refBias2.stan',
+
+    # stan model ref bias correction version 2 and mix of 2 gaussians prior with GT
+
+    'StanGTMix' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.priors.refBias2.mix1.stan',
+
+    # stan model ref bias correction version 2 and mix of k gaussians prior with GT
+
+    'StanGTMixAny' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.generalprior.refBias2.stan',
+
+     # stan model no ref bias correction  and mix of k gaussians prior with GT
+
+    'StanGTMixAnyNoBias' : '/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.prob.phasing.generalprior.eff2.stan',
+    
+
+    #stan model no ref bias correction noGT
+    'StanNoGT2NoBias' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.prior02.eff2.stan",
+
+    # stan model refbias version 1 no GT
+
+    'StanNoGT1' : "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT.rsnp.prior02.refbias.stan",
+
+    # stan model refbias version 2 no GT
+
+    'StanNoGT2' : "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.prior02.refbias2.stan",
+
+    #stan model no ref bias correction noGT prior N(0, 0.54)
+    
+    'StanNoGT054NoBias' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.prior054.eff2.stan",
+
+     # stan model refbias version 2 no GT
+
+    'StanNoGT054refbias' : "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.prior054.refbias2.stan",
+
+    #stan model no ref bias correction noGT prior any mix
+    
+    'StanNoGTAnyMixNoBias' : "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.generalprior.eff2.stan",
+
+     # stan model refbias version 2 prior any mix no GT
+
+    'StanNoGTAnyMixrefbias' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.beta.noGT2.rsnp.generalprior.refbias2.stan",
+   
+    # dir to download gtex EBV eqtl data
+
+    "EBV" : "/mrc-bsu/scratch/ev250/GTEx_Analysis_v7_eQTL",
+
+    # dir to download geuvadis best cis-gene fdr5
+
+    "geu_arrayX" : "/mrc-bsu/scratch/ev250/EGEUV1/array_express_eqtl/",
+
+    # dir to download MuTHER chr22 eqtl data
+
+    "MuTHER" : "/mrc-bsu/scratch/ev250/MuTHER",
+
+    #dir to download 36to37chain file
+
+    "chain" : "/mrc-bsu/scratch/ev250/reference_genome/36to37",
+
+    # file with significant eQTL from whole GEUVADIS data: from Chris
+
+    "sig-GEU": '/home/ev250/rds/rds-cew54-wallace-share/Data/GEUVADIS/Geuvadis_sig_eqtl',
+
+    # EUR 373 samples from GEUVADIS downloaded from arrayexpress https://www.ebi.ac.uk/arrayexpress/experiments/E-GEUV-1/files/analysis_results/
+
+    "EUR-GEU": "/mrc-bsu/scratch/ev250/EGEUV1/array_express_eqtl/EUR373.gene.cis.FDR5.all.rs137.txt" ,
+
+     #stan trec model with mixed gaussians as priors
+    
+    'trec_mix' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.only.mix.prior.stan",
+    
+    #stan trec model with mixed gaussians-2 as priors
+    
+    'trec_mix2' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.only.mix.prior2.stan",
+    
+    #stan trec model with mixed gaussians-2 as priors
+    
+    'trec_mixAny' :  "/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/neg.only.generalprior.stan",
+
+    #bin to download rasqual etc
+
+    'bin' : "/mrc-bsu/scratch/ev250/bin",
+
+    # path to reference fasta file to call variants
+    'fasta_ref' : "/mrc-bsu/scratch/ev250/reference_genome/built37/human_g1k_v37.fasta",
+
+    # path to dir  with deseq2 inputs I made for Wei-Yu plus Wei-Yu outputs
+
+    'deseq2in' : "/mrc-bsu/scratch/wyl37/ElenaData"
+    }

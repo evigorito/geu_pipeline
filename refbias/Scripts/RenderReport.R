@@ -1,0 +1,1 @@
+/home/ev250/Bayesian_inf/trecase/Scripts/stan_eff/real_data/psoriasis/run_Btrecase/Scripts/RenderReport.R
