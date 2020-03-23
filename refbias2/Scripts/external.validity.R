@@ -22,6 +22,7 @@ rbias <- snakemake@params[['rbias']]
 
 
 ## FDR range for frequentist tests
+
 r.fdr <- sort(c(10^(seq(-7,-1,1)), 0.05, 0.015, 0.15, 0.5, 0.8, 1))
 
 ## add BH corrected pvalue and significance by fdr cut-off
@@ -200,6 +201,10 @@ per.fdr <- function(dt, pv="pvalue", dt2){
 
 rasq.perm <- per.fdr(dt=rasq(rasq86, dseq.l[[1]], fdr="no"), pv="p", dt2=a.approx)
 
+## add to rasqual
+rasqual[['rasqPerm']] <- rasq.perm
+
+
 #########
 ## lm ###
 #########
@@ -285,6 +290,16 @@ base.fdr <- function(baseqtl) {
 
 baseqtl.fdr <- lapply(baseqtl, base.fdr)
 
+##################
+## save objects
+###################
+
+saveRDS(lm, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/lm.rds")
+saveRDS(dseq.l, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/dseq.l.rds")
+saveRDS(rasqual, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/rasqual.rds")
+saveRDS(baseqtl,  "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/baseqtl.GT.gc.rds")
+saveRDS(baseqtl.fdr,  "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/baseqtl.fdr.GT.gc.rds")
+
 ###############################################################
 ## Select same associations in rasqual, baseqtl, dseq and lm
 ################################################################
@@ -295,7 +310,7 @@ assoc <- Reduce(function(a,b) {
 }, c(dseq.l, rasqual, lm, baseqtl))
 
 
-common.all <- lapply(c(dseq.l, rasqual, list(rasqual.per=rasq.perm), lm, baseqtl),
+common.all <- lapply(c(dseq.l, rasqual, lm, baseqtl),
                      function(i) merge(i, assoc, by=names(assoc)) )
 
 ####################################################
@@ -327,12 +342,14 @@ lm.l <- lapply(common.all[names(lm)],
                                 c("Gene_id", "tag","log2_aFC_mean","p_adjust","log2_aFC_se_mean",
                                   grep("null.fdr",names(i), value=T))))
 
-rasq.l <- lapply(common.all[names(rasqual)],
-                 function(i) long(i, c("Gene_id", "tag","log2_aFC_mean","p_adjust",
-                                       grep("null.fdr",names(i), value=T))))
+rasq.l <- mapply(function(i,j) {
+    tmp <- c("Gene_id", "tag","log2_aFC_mean", j, grep("null.fdr",names(i), value=T)) ## names in data table
+    long(i, tmp)
+},
+                i= common.all[names(rasqual)],
+                j=c(rep("p_adjust",3), "p"),
+SIMPLIFY=F)
 
-rasq.per.l <- long(common.all$rasqual.per, c("Gene_id", "tag","log2_aFC_mean","p",
-                                       grep("null.fdr",names(rasq.perm), value=T)))
 
 ## restrict to common assoc
 baseqtl.l <- lapply(baseqtl.fdr, function(i) merge(i, assoc, by=names(assoc)))
@@ -352,7 +369,11 @@ sig.qtl[, aFC:=2*Beta]
 
 
 ## gather datasets with common assoc in long form
-common.all.l <- c(dseq2.l, rasq.l, list(rasq.perm=rasq.per.l), lm.l, baseqtl.l)
+common.all.l <- c(dseq2.l, rasq.l,  lm.l, baseqtl.l)
+
+## save
+saveRDS(common.all.l, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/common.all.l.rds")
+
 
 tot.sig.a <- rbindlist(lapply(common.all.l,
                               function(a) {
@@ -394,11 +415,14 @@ setkey(comp.geu.assoc, Method, Fdr)
 comp.geu.assoc[, Fdr.approx:=Fdr][Method %in% c("BaseQTL","BaseQTL25"),
                                   Fdr.approx:=c( 0.001, 0.010, 0.050, 0.1, 0.15)][, Fdr.approx:=as.factor(Fdr.approx)]
 
+## Save
+
+saveRDS(comp.geu.assoc, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/comp.geu.assoc.rds")
 
 
 ## compare all methods with 86 inds with Fdr 0.001-0.01 (as before), exclude deseq2
-fdr.plot(dt=comp.geu.assoc[Fdr.approx %in% c( 0.001, 0.010, 0.050, 0.1, 0.15) & 
-                                    Method %in% c( "BaseQTL","lm.Inds86_gclibsize", "rasq.perm"), ],
+assoc <- fdr.plot(dt=comp.geu.assoc[Fdr.approx %in% c( 0.001, 0.010, 0.050, 0.1, 0.15) & 
+                                    Method %in% c( "BaseQTL","lm.Inds86_gclibsize", "rasqPerm"), ],
                   x="PPV",
                   y="Sensitivity",
                   lab.col="N.total",
@@ -407,6 +431,7 @@ fdr.plot(dt=comp.geu.assoc[Fdr.approx %in% c( 0.001, 0.010, 0.050, 0.1, 0.15) &
          label="yes")
 
 
+assoc
 
 fdr.plot(dt=comp.geu.assoc[Method %in% c("BaseQTL","lm.Inds86_gclibsize", "rasq86"), ],
                   x="PPV",
@@ -493,6 +518,10 @@ comp.geu.g[, Fdr.approx:=Fdr][Method %in% c("BaseQTL", "BaseQTL25"),
 
 ## change label for method
 comp.geu.g[Method =="GT", Method:="BaseQTL"][Method=="GT25", Method:="BaseQTL25"]
+
+##save
+saveRDS(comp.geu.g, "/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/comp.geu.g.rds")
+
 ## compare all methods with 86 inds
 fdr.plot(dt=comp.geu.g[  Method %in%  c( "BaseQTL","lm.Inds86_gclibsize", "rasq86"), ],
                   x="PPV",
@@ -503,12 +532,15 @@ fdr.plot(dt=comp.geu.g[  Method %in%  c( "BaseQTL","lm.Inds86_gclibsize", "rasq8
 
 
 
-fdr.plot(dt=comp.geu.g[ Fdr.approx %in% c( 0.001, 0.010, 0.050, 0.10, 0.15) & Method %in%  c("BaseQTL","lm.Inds86_gclibsize", "rasq.perm"), ],
+genes <- fdr.plot(dt=comp.geu.g[ Fdr.approx %in% c( 0.001, 0.010, 0.050, 0.10, 0.15) & Method %in%  c("BaseQTL","lm.Inds86_gclibsize", "rasqPerm"), ],
                   x="PPV",
                   y="Sensitivity",
                   lab.col="N.total",
          type="eGenes", col="sig.geu",
          path="no")
+
+plot <- plot_grid(assoc, genes, nrow=1)
+ggsave("/mrc-bsu/scratch/ev250/EGEUV1/quant/outputPaper/assoc_genes.png", plot,width=9.2, height=3.5)
 
 ## dif number of inds
 print(names(lm)[4])
